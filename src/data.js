@@ -2,6 +2,8 @@ export const today = new Date().toISOString().slice(0, 10)
 const days = (date) => Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000)
 export const config = {
   storageKey: 'family-document-keeper-v1',
+  snapshotKey: 'family-document-keeper-v1-restore-snapshot',
+  collectionLabels: { documents: '证件档案', policies: '保单', usages: '使用记录' },
   brand: '家档管家', subtitle: 'Family Archive', icon: 'FolderLock', entityLabel: '证件档案', secondaryLabel: '家庭保险', historyLabel: '使用记录', heroTitle: '让重要文件，始终井然有序。', heroCopy: '证件、保单和家庭文件，都有清晰的去处与提醒。', createLabel: '新建档案',
   nav: [{ id: 'overview', label: '总览' }, { id: 'documents', label: '证件档案' }, { id: 'history', label: '使用记录' }, { id: 'insurance', label: '家庭保险' }, { id: 'achievements', label: '成就与榜单' }],
   metrics: [
