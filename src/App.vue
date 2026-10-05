@@ -1,10 +1,16 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { Archive, Award, Bell, BookOpen, CalendarClock, ChevronRight, CircleAlert, FilePlus2, FolderLock, LayoutDashboard, Menu, Plus, RotateCcw, Search, ShieldCheck, TrendingUp, UserRound, X } from 'lucide-vue-next'
+import { Archive, Award, Bell, BookOpen, CalendarClock, ChevronRight, CircleAlert, FilePlus2, FolderLock, LayoutDashboard, Menu, Plus, RotateCcw, Search, ShieldCheck, TrendingUp, Undo2, UserRound, X } from 'lucide-vue-next'
 import { config, days } from './data'
 import { useKeeper } from './composables/useKeeper'
-const { state, add, update, metrics, reset } = useKeeper()
+const { state, add, update, metrics, reset, undoReset, canUndo } = useKeeper()
 const active = ref('overview'); const query = ref(''); const showForm = ref(false); const mobileOpen = ref(false); const draft = ref({})
+const showResetConfirm = ref(false); const toast = ref(null)
+const resetImpact = computed(() => [
+  { label: config.entityLabel, count: state.documents.length, unit: '份' },
+  { label: config.secondaryLabel, count: state.policies.length, unit: '份' },
+  { label: config.historyLabel, count: state.usages.length, unit: '条' },
+])
 const activeNav = computed(() => config.nav.find((x) => x.id === active.value))
 const docs = computed(() => state.documents.filter((x) => `${x.name}${x.holder}${x.category}`.toLowerCase().includes(query.value.toLowerCase())))
 const alerts = computed(() => state.documents.map((x) => ({ ...x, remaining: days(x.expires) })).filter((x) => x.remaining <= 90).sort((a, b) => a.remaining - b.remaining))
@@ -15,10 +21,12 @@ function save() { add(config.form.collection, { ...draft.value }); showForm.valu
 function readFile(event) { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { draft.value.photo = reader.result }; reader.readAsDataURL(file) }
 function markRenewed(doc) { update('documents', doc.id, { expires: `${new Date().getFullYear() + 10}-12-31`, renewed: true }) }
 function navTo(id) { active.value = id; mobileOpen.value = false }
+function confirmReset() { reset(); showResetConfirm.value = false; toast.value = { kind: 'undo', text: `已恢复演示数据，恢复前的数据已自动保存快照（${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}）。` } }
+function undo() { if (undoReset()) toast.value = { kind: 'info', text: '已撤销恢复，档案、保单和使用记录均已回到恢复前状态。' } }
 </script>
 <template>
   <div class="app-shell">
-    <aside class="sidebar" :class="{ open: mobileOpen }"><div class="brand"><span class="brand-mark"><FolderLock :size="19" /></span><div><strong>{{ config.brand }}</strong><small>{{ config.subtitle }}</small></div><button class="icon-btn close" @click="mobileOpen = false"><X :size="17" /></button></div><div class="family-chip"><span>林</span><div><b>林家家庭空间</b><small>4 位成员 · 私密存储</small></div><ChevronRight :size="15" /></div><nav><button v-for="item in config.nav" :key="item.id" :class="{ active: active === item.id }" @click="navTo(item.id)"><component :is="item.id === 'overview' ? LayoutDashboard : item.id === 'documents' ? Archive : item.id === 'history' ? CalendarClock : item.id === 'insurance' ? ShieldCheck : Award" :size="17" /><span>{{ item.label }}</span><i v-if="item.id === 'documents' && alerts.length">{{ alerts.length }}</i></button></nav><div class="sidebar-foot"><button><BookOpen :size="17" />使用指南</button><button><UserRound :size="17" />个人中心</button><button class="reset" @click="reset"><RotateCcw :size="15" />恢复演示数据</button></div></aside>
+    <aside class="sidebar" :class="{ open: mobileOpen }"><div class="brand"><span class="brand-mark"><FolderLock :size="19" /></span><div><strong>{{ config.brand }}</strong><small>{{ config.subtitle }}</small></div><button class="icon-btn close" @click="mobileOpen = false"><X :size="17" /></button></div><div class="family-chip"><span>林</span><div><b>林家家庭空间</b><small>4 位成员 · 私密存储</small></div><ChevronRight :size="15" /></div><nav><button v-for="item in config.nav" :key="item.id" :class="{ active: active === item.id }" @click="navTo(item.id)"><component :is="item.id === 'overview' ? LayoutDashboard : item.id === 'documents' ? Archive : item.id === 'history' ? CalendarClock : item.id === 'insurance' ? ShieldCheck : Award" :size="17" /><span>{{ item.label }}</span><i v-if="item.id === 'documents' && alerts.length">{{ alerts.length }}</i></button></nav><div class="sidebar-foot"><button><BookOpen :size="17" />使用指南</button><button><UserRound :size="17" />个人中心</button><button v-if="canUndo" class="undo" @click="undo"><Undo2 :size="15" />撤销恢复</button><button class="reset" @click="showResetConfirm = true"><RotateCcw :size="15" />恢复演示数据</button></div></aside>
     <main class="main"><header class="topbar"><button class="icon-btn menu" @click="mobileOpen = true"><Menu :size="20" /></button><div><span class="eyebrow">家庭文件空间</span><h1>{{ activeNav.label }}</h1></div><div class="top-actions"><button class="icon-btn"><Bell :size="18" /><em v-if="alerts.length"></em></button><span class="avatar">林</span><b>Lin</b></div></header>
       <div class="page">
         <section class="intro"><div><span class="eyebrow">{{ active === 'overview' ? '星期三 · 2026年9月16日' : '数据随时保存在当前设备' }}</span><h2>{{ active === 'overview' ? config.heroTitle : activeNav.label }}</h2><p>{{ active === 'overview' ? config.heroCopy : '集中查看、编辑和追踪家庭资料。' }}</p></div><button class="primary" @click="openCreate"><Plus :size="16" />{{ config.createLabel || '新建档案' }}</button></section>
@@ -31,5 +39,7 @@ function navTo(id) { active.value = id; mobileOpen.value = false }
       </div>
     </main>
     <div v-if="showForm" class="modal-backdrop" @click.self="showForm = false"><form class="modal" @submit.prevent="save"><div class="modal-head"><div><span class="eyebrow">建立家庭档案</span><h3>{{ config.form.title }}</h3></div><button type="button" class="icon-btn" @click="showForm = false"><X :size="17" /></button></div><div class="form-grid"><label v-for="[key, label, placeholder, type] in config.form.fields" :key="key" :class="{ wide: key === 'notes' }">{{ label }}<input v-model="draft[key]" :type="type || 'text'" :placeholder="placeholder" /></label><label class="wide upload-field">照片或扫描件（可选）<input type="file" accept="image/*" @change="readFile" /><small>{{ draft.photo ? '已读取图片，可随档案保存' : '支持 JPG、PNG，内容仅保存在本机' }}</small></label></div><div class="modal-actions"><button type="button" class="secondary" @click="showForm = false">取消</button><button class="primary" type="submit"><FilePlus2 :size="16" />保存档案</button></div></form></div>
+    <div v-if="showResetConfirm" class="modal-backdrop" @click.self="showResetConfirm = false"><div class="modal modal-sm"><div class="modal-head"><div><span class="eyebrow">危险操作</span><h3>确认恢复演示数据？</h3></div><button type="button" class="icon-btn" @click="showResetConfirm = false"><X :size="17" /></button></div><p class="reset-warn">此操作将立即清空当前设备上已录入的全部数据，并替换为内置演示数据：</p><ul class="reset-impact"><li v-for="item in resetImpact" :key="item.label"><b>{{ item.count }}</b> {{ item.unit }} · {{ item.label }}</li></ul><p class="reset-note">恢复前会自动为当前数据保存一份快照；恢复后如需反悔，可点击「撤销恢复」完整回到当前状态。</p><div class="modal-actions"><button type="button" class="secondary" @click="showResetConfirm = false">取消</button><button type="button" class="primary danger" @click="confirmReset"><RotateCcw :size="15" />确认恢复</button></div></div></div>
+    <div v-if="toast" class="toast" :class="toast.kind"><RotateCcw v-if="toast.kind === 'undo'" :size="16" class="accent" /><ShieldCheck v-else :size="16" class="accent" /><span>{{ toast.text }}</span><button v-if="toast.kind === 'undo'" class="tiny-btn" @click="undo">撤销恢复</button><button class="icon-btn" @click="toast = null"><X :size="14" /></button></div>
   </div>
 </template>
